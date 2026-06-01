@@ -19,6 +19,9 @@ Only include real flaws you observe. Don't pad.
 [FIXED]
 The corrected prompt. Rewrite it from scratch. Infer the user's intent even if they were vague — ambiguity is a charge, but you still fix it. No commentary, just the improved prompt.`;
 
+const MARKERS = ['[ROAST]', '[CHARGES]', '[FIXED]'];
+const SECTION_MAP = { '[ROAST]': 'ROAST', '[CHARGES]': 'CHARGES', '[FIXED]': 'FIXED' };
+
 function parseArgs() {
   program
     .name('roast')
@@ -40,26 +43,29 @@ function buildUserMessage(prompt, task) {
   return `Prompt to roast:\n${prompt}`;
 }
 
-function renderSection(section, buffer) {
-  const text = buffer.trim();
-  if (!text) return;
-
+function printSectionHeader(section) {
   if (section === 'ROAST') {
     process.stdout.write('\n' + chalk.bold.white('THE ROAST') + '\n');
-    process.stdout.write(text + '\n');
   } else if (section === 'CHARGES') {
     process.stdout.write('\n' + chalk.bold.white('CHARGES') + '\n');
-    const lines = text.split('\n').filter(Boolean);
-    for (const line of lines) {
-      const colored = line.replace(/^✗/, chalk.red('✗'));
-      process.stdout.write(colored + '\n');
-    }
   } else if (section === 'FIXED') {
     process.stdout.write('\n' + chalk.bold.white('FIXED VERSION') + '\n');
-    const border = chalk.dim('─'.repeat(60));
-    process.stdout.write(border + '\n');
-    process.stdout.write(text + '\n');
-    process.stdout.write(border + '\n');
+    process.stdout.write(chalk.dim('─'.repeat(60)) + '\n');
+  }
+}
+
+function printSectionFooter(section) {
+  if (section === 'FIXED') {
+    process.stdout.write(chalk.dim('─'.repeat(60)) + '\n');
+  }
+}
+
+function flushContent(section, text) {
+  if (!text) return;
+  if (section === 'CHARGES') {
+    process.stdout.write(text.replace(/^✗/gm, chalk.red('✗')));
+  } else {
+    process.stdout.write(text);
   }
 }
 
@@ -75,11 +81,7 @@ async function streamRoast(prompt, options) {
 
   let currentSection = null;
   let buffer = '';
-  let raw = '';
   let firstChunk = true;
-
-  const MARKERS = ['[ROAST]', '[CHARGES]', '[FIXED]'];
-  const SECTION_MAP = { '[ROAST]': 'ROAST', '[CHARGES]': 'CHARGES', '[FIXED]': 'FIXED' };
 
   try {
     const stream = await client.messages.stream({
@@ -99,28 +101,26 @@ async function streamRoast(prompt, options) {
         firstChunk = false;
       }
 
-      raw += text;
       buffer += text;
 
-      // Check if buffer contains a marker transition
       let foundMarker = false;
       for (const marker of MARKERS) {
         const idx = buffer.indexOf(marker);
         if (idx !== -1) {
           foundMarker = true;
           const before = buffer.slice(0, idx);
-          if (currentSection && before.trim()) {
-            renderSection(currentSection, before);
+          if (currentSection) {
+            flushContent(currentSection, before);
+            printSectionFooter(currentSection);
           }
           currentSection = SECTION_MAP[marker];
+          printSectionHeader(currentSection);
           buffer = buffer.slice(idx + marker.length);
           break;
         }
       }
 
-      // If we're in a section and no marker pending, stream output
       if (!foundMarker && currentSection) {
-        // Check if buffer might be the start of a marker
         const mightBeMarker = MARKERS.some(m => {
           for (let i = 1; i < m.length; i++) {
             if (buffer.endsWith(m.slice(0, i))) return true;
@@ -132,14 +132,14 @@ async function streamRoast(prompt, options) {
           const lines = buffer.split('\n');
           const toFlush = lines.slice(0, -1).join('\n') + '\n';
           buffer = lines[lines.length - 1];
-          flushLines(currentSection, toFlush);
+          flushContent(currentSection, toFlush);
         }
       }
     }
 
-    // Flush remaining buffer
     if (currentSection && buffer.trim()) {
-      renderSection(currentSection, buffer);
+      flushContent(currentSection, buffer.trim() + '\n');
+      printSectionFooter(currentSection);
     }
 
     process.stdout.write('\n');
@@ -156,28 +156,18 @@ async function streamRoast(prompt, options) {
   }
 }
 
-// Stream-friendly line flusher — only used mid-stream for ROAST/CHARGES
-function flushLines(section, text) {
-  if (section === 'ROAST') {
-    process.stdout.write(text);
-  } else if (section === 'CHARGES') {
-    const colored = text.replace(/^✗/gm, chalk.red('✗'));
-    process.stdout.write(colored);
-  } else if (section === 'FIXED') {
-    process.stdout.write(text);
-  }
-}
-
 async function main() {
   const { prompt, options } = parseArgs();
+
+  if (options.color === false) {
+    chalk.level = 0;
+  }
 
   if (!prompt || !prompt.trim()) {
     process.stderr.write(chalk.red('✗ Provide a prompt to roast.\n'));
     process.exit(1);
   }
 
-  // Print section headers lazily — we render inline during streaming
-  // except FIXED which gets a box; handle that in renderSection
   await streamRoast(prompt, options);
 }
 
