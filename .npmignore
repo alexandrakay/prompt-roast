@@ -1,0 +1,4 @@
+.env*
+.claude/
+plans/
+PRD.md

@@ -4,15 +4,26 @@
   "description": "Your prompt reviewed, roasted, and returned fixed.",
   "main": "index.js",
   "bin": {
-    "roast": "./index.js"
+    "roast": "index.js"
   },
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },
-  "keywords": ["prompt", "ai", "cli", "llm", "anthropic"],
+  "keywords": [
+    "prompt",
+    "ai",
+    "cli",
+    "llm",
+    "anthropic"
+  ],
   "author": "alexandrakay",
   "license": "MIT",
   "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/alexandrakay/prompt-roast.git"
+  },
+  "homepage": "https://github.com/alexandrakay/prompt-roast#readme",
   "dependencies": {
     "@anthropic-ai/sdk": "^0.100.1",
     "chalk": "^5.6.2",
