@@ -47,13 +47,13 @@ export function buildUserMessage(prompt, task) {
   return `Prompt to roast:\n${prompt}`;
 }
 
-function printSectionHeader(section) {
+export function printSectionHeader(section) {
   if (section === 'ROAST') {
-    process.stdout.write('\n' + chalk.bold.white('THE ROAST') + '\n');
+    process.stdout.write('\n' + chalk.bold.red('THE ROAST') + '\n');
   } else if (section === 'CHARGES') {
-    process.stdout.write('\n' + chalk.bold.white('CHARGES') + '\n');
+    process.stdout.write('\n' + chalk.bold.yellow('CHARGES') + '\n');
   } else if (section === 'FIXED') {
-    process.stdout.write('\n' + chalk.bold.white('FIXED VERSION') + '\n');
+    process.stdout.write('\n' + chalk.bold.green('FIXED VERSION') + '\n');
     process.stdout.write(chalk.dim('─'.repeat(60)) + '\n');
   }
 }
@@ -64,10 +64,14 @@ function printSectionFooter(section) {
   }
 }
 
-function flushContent(section, text) {
+export function flushContent(section, text) {
   if (!text) return;
-  if (section === 'CHARGES') {
+  if (section === 'ROAST') {
+    process.stdout.write(chalk.yellow(text));
+  } else if (section === 'CHARGES') {
     process.stdout.write(text.replace(/^✗/gm, chalk.red('✗')));
+  } else if (section === 'FIXED') {
+    process.stdout.write(chalk.cyan(text));
   } else {
     process.stdout.write(text);
   }
