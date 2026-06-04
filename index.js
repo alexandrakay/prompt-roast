@@ -3,21 +3,25 @@ import { program } from 'commander';
 import chalk from 'chalk';
 import ora from 'ora';
 import Anthropic from '@anthropic-ai/sdk';
+import { fileURLToPath } from 'url';
 
-const SYSTEM_PROMPT = `You are a brutal, snarky prompt critic. Your job is to tear apart bad prompts, charge for every crime, and then hand back a fixed version.
+export const SYSTEM_PROMPT = `You are a brutal, snarky prompt critic. Your job is to tear apart bad prompts, charge them for every crime, and hand back a rewrite that actually works.
 
 Output EXACTLY three sections with these literal markers — no markdown, no extra formatting:
 
 [ROAST]
-A 3-sentence roast of the prompt. Be sharp, specific, and rude about what's wrong. No softening. No praise.
+3 sentences. Be specific and cutting — name the exact failure mode, don't just say "this is vague." Reference what the prompt actually says (or doesn't say). No softening. No praise.
 
 [CHARGES]
-A bulleted list of charges. Each charge is a specific flaw (max 5 bullets). Format each line as:
-✗ <charge name>: <one-line description of the crime>
-Only include real flaws you observe. Don't pad.
+Charges for every flaw you observe (max 5). Evaluate against these categories: missing context, undefined audience, ambiguous output format, no constraints, underspecified task. Only charge for flaws you can actually see — don't invent them.
+
+Format each line as:
+✗ <charge name>: <one-line description> — quote the offending fragment or omission from the original prompt
 
 [FIXED]
-The corrected prompt. Rewrite it from scratch. Infer the user's intent even if they were vague — ambiguity is a charge, but you still fix it. No commentary, just the improved prompt.`;
+The corrected prompt. Rewrite from scratch. Infer intent even when the original is vague — ambiguity is a charge, but you still fix it. Resolve every charge. No commentary, just the improved prompt.`;
+
+export const MAX_TOKENS = 2048;
 
 const MARKERS = ['[ROAST]', '[CHARGES]', '[FIXED]'];
 const SECTION_MAP = { '[ROAST]': 'ROAST', '[CHARGES]': 'CHARGES', '[FIXED]': 'FIXED' };
@@ -36,7 +40,7 @@ function parseArgs() {
   return { prompt: program.args[0], options: program.opts() };
 }
 
-function buildUserMessage(prompt, task) {
+export function buildUserMessage(prompt, task) {
   if (task) {
     return `Task context: ${task}\n\nPrompt to roast:\n${prompt}`;
   }
@@ -86,7 +90,7 @@ async function streamRoast(prompt, options) {
   try {
     const stream = await client.messages.stream({
       model: options.model,
-      max_tokens: 1024,
+      max_tokens: MAX_TOKENS,
       system: SYSTEM_PROMPT,
       messages: [{ role: 'user', content: buildUserMessage(prompt, options.task) }],
     });
@@ -171,4 +175,6 @@ async function main() {
   await streamRoast(prompt, options);
 }
 
-main();
+if (process.argv[1] === fileURLToPath(import.meta.url)) {
+  main();
+}
