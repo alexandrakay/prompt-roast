@@ -1,10 +1,7 @@
 import { describe, it, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import chalk from 'chalk';
-import { SYSTEM_PROMPT, MAX_TOKENS, buildUserMessage, printSectionHeader, flushContent, readFilePrompt } from './index.js';
-import { writeFileSync, unlinkSync } from 'node:fs';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { SYSTEM_PROMPT, MAX_TOKENS, buildUserMessage, printSectionHeader, flushContent, getClipboardCommand } from './index.js';
 
 const ANSI_RE = /\x1b\[[0-9;]*m/;
 
@@ -128,27 +125,20 @@ describe('--no-color mode (chalk.level = 0)', () => {
   });
 });
 
-describe('readFilePrompt', () => {
-  let tmpFile;
-
-  beforeEach(() => {
-    tmpFile = join(tmpdir(), `roast-test-${Date.now()}.txt`);
+describe('getClipboardCommand', () => {
+  it('returns pbcopy on macOS', () => {
+    const { cmd } = getClipboardCommand('darwin');
+    assert.equal(cmd, 'pbcopy');
   });
 
-  afterEach(() => {
-    try { unlinkSync(tmpFile); } catch {}
+  it('returns xclip on linux', () => {
+    const { cmd, args } = getClipboardCommand('linux');
+    assert.equal(cmd, 'xclip');
+    assert.deepEqual(args, ['-selection', 'clipboard']);
   });
 
-  it('reads and trims content from an existing file', async () => {
-    writeFileSync(tmpFile, '  my test prompt  \n');
-    const result = await readFilePrompt(tmpFile);
-    assert.equal(result, 'my test prompt');
-  });
-
-  it('throws when the file does not exist', async () => {
-    await assert.rejects(
-      () => readFilePrompt('/nonexistent/path/prompt.txt'),
-      /ENOENT/
-    );
+  it('returns null on unsupported platforms', () => {
+    const result = getClipboardCommand('win32');
+    assert.equal(result, null);
   });
 });
