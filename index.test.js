@@ -1,7 +1,10 @@
 import { describe, it, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import chalk from 'chalk';
-import { SYSTEM_PROMPT, MAX_TOKENS, buildUserMessage, printSectionHeader, flushContent, getClipboardCommand } from './index.js';
+import { SYSTEM_PROMPT, MAX_TOKENS, buildUserMessage, printSectionHeader, flushContent, getClipboardCommand, VERSION } from './index.js';
+import { createRequire } from 'node:module';
+const require = createRequire(import.meta.url);
+const pkg = require('./package.json');
 
 const ANSI_RE = /\x1b\[[0-9;]*m/;
 
@@ -42,6 +45,12 @@ describe('SYSTEM_PROMPT', () => {
     assert.ok(SYSTEM_PROMPT.includes('[ROAST]'));
     assert.ok(SYSTEM_PROMPT.includes('[CHARGES]'));
     assert.ok(SYSTEM_PROMPT.includes('[FIXED]'));
+  });
+});
+
+describe('VERSION', () => {
+  it('matches the version in package.json', () => {
+    assert.equal(VERSION, pkg.version);
   });
 });
 
