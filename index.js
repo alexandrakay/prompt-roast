@@ -4,6 +4,9 @@ import chalk from 'chalk';
 import ora from 'ora';
 import Anthropic from '@anthropic-ai/sdk';
 import { fileURLToPath } from 'url';
+import { createRequire } from 'node:module';
+const _require = createRequire(import.meta.url);
+export const VERSION = _require('./package.json').version;
 
 export const SYSTEM_PROMPT = `You are a brutal, snarky prompt critic. Your job is to tear apart bad prompts, charge them for every crime, and hand back a rewrite that actually works.
 
@@ -40,7 +43,7 @@ async function parseArgs() {
   program
     .name('roast')
     .description('Your prompt reviewed, roasted, and returned fixed.')
-    .version('1.0.0')
+    .version(VERSION)
     .argument('[prompt]', 'The prompt to roast (or pipe via stdin)')
     .option('-m, --model <model>', 'Claude model to use', 'claude-haiku-4-5')
     .option('-t, --task <task>', 'Task context (e.g. "code review", "email writing")')
