@@ -4,6 +4,7 @@ import chalk from 'chalk';
 import ora from 'ora';
 import Anthropic from '@anthropic-ai/sdk';
 import { fileURLToPath } from 'url';
+import { readFile } from 'node:fs/promises';
 
 export const SYSTEM_PROMPT = `You are a brutal, snarky prompt critic. Your job is to tear apart bad prompts, charge them for every crime, and hand back a rewrite that actually works.
 
@@ -26,18 +27,48 @@ export const MAX_TOKENS = 2048;
 const MARKERS = ['[ROAST]', '[CHARGES]', '[FIXED]'];
 const SECTION_MAP = { '[ROAST]': 'ROAST', '[CHARGES]': 'CHARGES', '[FIXED]': 'FIXED' };
 
-function parseArgs() {
+function readStdin() {
+  return new Promise((resolve, reject) => {
+    let data = '';
+    process.stdin.setEncoding('utf8');
+    process.stdin.on('data', chunk => { data += chunk; });
+    process.stdin.on('end', () => resolve(data.trim()));
+    process.stdin.on('error', reject);
+  });
+}
+
+export async function readFilePrompt(filePath) {
+  const content = await readFile(filePath, 'utf8');
+  return content.trim();
+}
+
+async function parseArgs() {
   program
     .name('roast')
     .description('Your prompt reviewed, roasted, and returned fixed.')
     .version('1.0.0')
-    .argument('<prompt>', 'The prompt to roast')
+    .argument('[prompt]', 'The prompt to roast (or pipe via stdin)')
     .option('-m, --model <model>', 'Claude model to use', 'claude-haiku-4-5')
     .option('-t, --task <task>', 'Task context (e.g. "code review", "email writing")')
+    .option('-f, --file <path>', 'Read prompt from a file')
     .option('--no-color', 'Disable color output')
     .parse();
 
-  return { prompt: program.args[0], options: program.opts() };
+  const opts = program.opts();
+  let prompt = program.args[0];
+
+  if (prompt && opts.file) {
+    process.stderr.write(chalk.red('✗ Provide a prompt as an argument or via --file, not both.\n'));
+    process.exit(1);
+  }
+
+  if (opts.file) {
+    prompt = await readFilePrompt(opts.file);
+  } else if (!prompt && !process.stdin.isTTY) {
+    prompt = await readStdin();
+  }
+
+  return { prompt, options: opts };
 }
 
 export function buildUserMessage(prompt, task) {
@@ -165,7 +196,7 @@ async function streamRoast(prompt, options) {
 }
 
 async function main() {
-  const { prompt, options } = parseArgs();
+  const { prompt, options } = await parseArgs();
 
   if (options.color === false) {
     chalk.level = 0;
