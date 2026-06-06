@@ -1,7 +1,8 @@
 import { describe, it, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import chalk from 'chalk';
-import { SYSTEM_PROMPT, MAX_TOKENS, buildUserMessage, printSectionHeader, flushContent } from './index.js';
+import { SYSTEM_PROMPT, MAX_TOKENS, buildUserMessage, printSectionHeader, flushContent, readStdin } from './index.js';
+import { PassThrough } from 'node:stream';
 
 const ANSI_RE = /\x1b\[[0-9;]*m/;
 
@@ -122,5 +123,40 @@ describe('--no-color mode (chalk.level = 0)', () => {
   it('ROAST body produces plain text', () => {
     const out = captureStdout(() => flushContent('ROAST', 'some roast text\n'));
     assert.ok(!ANSI_RE.test(out), 'no ANSI codes expected when chalk.level = 0');
+  });
+});
+
+describe('readStdin', () => {
+  let originalStdin;
+
+  beforeEach(() => {
+    originalStdin = process.stdin;
+  });
+
+  afterEach(() => {
+    Object.defineProperty(process, 'stdin', { value: originalStdin, configurable: true, writable: true });
+  });
+
+  it('reads and trims content piped via stdin', async () => {
+    const mock = new PassThrough();
+    Object.defineProperty(process, 'stdin', { value: mock, configurable: true, writable: true });
+
+    const promise = readStdin();
+    mock.write('  hello from stdin  \n');
+    mock.end();
+
+    const result = await promise;
+    assert.equal(result, 'hello from stdin');
+  });
+
+  it('returns an empty string when stdin is empty', async () => {
+    const mock = new PassThrough();
+    Object.defineProperty(process, 'stdin', { value: mock, configurable: true, writable: true });
+
+    const promise = readStdin();
+    mock.end();
+
+    const result = await promise;
+    assert.equal(result, '');
   });
 });

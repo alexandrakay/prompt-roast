@@ -26,7 +26,7 @@ export const MAX_TOKENS = 2048;
 const MARKERS = ['[ROAST]', '[CHARGES]', '[FIXED]'];
 const SECTION_MAP = { '[ROAST]': 'ROAST', '[CHARGES]': 'CHARGES', '[FIXED]': 'FIXED' };
 
-function readStdin() {
+export function readStdin() {
   return new Promise((resolve, reject) => {
     let data = '';
     process.stdin.setEncoding('utf8');
