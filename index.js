@@ -5,6 +5,7 @@ import ora from 'ora';
 import Anthropic from '@anthropic-ai/sdk';
 import { fileURLToPath } from 'url';
 import { readFile } from 'node:fs/promises';
+import { spawn } from 'node:child_process';
 
 export const SYSTEM_PROMPT = `You are a brutal, snarky prompt critic. Your job is to tear apart bad prompts, charge them for every crime, and hand back a rewrite that actually works.
 
@@ -26,6 +27,38 @@ export const MAX_TOKENS = 2048;
 
 const MARKERS = ['[ROAST]', '[CHARGES]', '[FIXED]'];
 const SECTION_MAP = { '[ROAST]': 'ROAST', '[CHARGES]': 'CHARGES', '[FIXED]': 'FIXED' };
+
+export function getClipboardCommand(platform) {
+  if (platform === 'darwin') return { cmd: 'pbcopy', args: [] };
+  if (platform === 'linux') return { cmd: 'xclip', args: ['-selection', 'clipboard'] };
+  return null;
+}
+
+export function copyToClipboard(text) {
+  return new Promise((resolve, reject) => {
+    const spec = getClipboardCommand(process.platform);
+    if (!spec) {
+      process.stderr.write(chalk.yellow('⚠ Clipboard not supported on this platform.\n'));
+      return resolve();
+    }
+    const proc = spawn(spec.cmd, spec.args);
+    proc.stdin.write(text);
+    proc.stdin.end();
+    proc.on('close', code => {
+      if (code === 0) {
+        process.stdout.write(chalk.dim('✓ Fixed prompt copied to clipboard\n'));
+        resolve();
+      } else {
+        process.stderr.write(chalk.yellow(`⚠ Could not copy to clipboard (${spec.cmd} exited ${code}).\n`));
+        resolve();
+      }
+    });
+    proc.on('error', () => {
+      process.stderr.write(chalk.yellow(`⚠ Clipboard utility not found (${spec.cmd}). Install it and try again.\n`));
+      resolve();
+    });
+  });
+}
 
 function readStdin() {
   return new Promise((resolve, reject) => {
@@ -51,6 +84,7 @@ async function parseArgs() {
     .option('-m, --model <model>', 'Claude model to use', 'claude-haiku-4-5')
     .option('-t, --task <task>', 'Task context (e.g. "code review", "email writing")')
     .option('-f, --file <path>', 'Read prompt from a file')
+    .option('-c, --copy', 'Copy FIXED output to clipboard after streaming')
     .option('--no-color', 'Disable color output')
     .parse();
 
@@ -121,6 +155,7 @@ async function streamRoast(prompt, options) {
   let currentSection = null;
   let buffer = '';
   let firstChunk = true;
+  let fixedAccumulator = '';
 
   try {
     const stream = await client.messages.stream({
@@ -151,6 +186,7 @@ async function streamRoast(prompt, options) {
           if (currentSection) {
             flushContent(currentSection, before);
             printSectionFooter(currentSection);
+            if (options.copy && currentSection === 'FIXED') fixedAccumulator += before;
           }
           currentSection = SECTION_MAP[marker];
           printSectionHeader(currentSection);
@@ -172,16 +208,23 @@ async function streamRoast(prompt, options) {
           const toFlush = lines.slice(0, -1).join('\n') + '\n';
           buffer = lines[lines.length - 1];
           flushContent(currentSection, toFlush);
+          if (options.copy && currentSection === 'FIXED') fixedAccumulator += toFlush;
         }
       }
     }
 
     if (currentSection && buffer.trim()) {
-      flushContent(currentSection, buffer.trim() + '\n');
+      const tail = buffer.trim() + '\n';
+      flushContent(currentSection, tail);
       printSectionFooter(currentSection);
+      if (options.copy && currentSection === 'FIXED') fixedAccumulator += tail;
     }
 
     process.stdout.write('\n');
+
+    if (options.copy && fixedAccumulator) {
+      await copyToClipboard(fixedAccumulator.trim());
+    }
   } catch (err) {
     spinner.stop();
     if (err.status === 401) {
