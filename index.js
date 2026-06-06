@@ -26,18 +26,33 @@ export const MAX_TOKENS = 2048;
 const MARKERS = ['[ROAST]', '[CHARGES]', '[FIXED]'];
 const SECTION_MAP = { '[ROAST]': 'ROAST', '[CHARGES]': 'CHARGES', '[FIXED]': 'FIXED' };
 
-function parseArgs() {
+function readStdin() {
+  return new Promise((resolve, reject) => {
+    let data = '';
+    process.stdin.setEncoding('utf8');
+    process.stdin.on('data', chunk => { data += chunk; });
+    process.stdin.on('end', () => resolve(data.trim()));
+    process.stdin.on('error', reject);
+  });
+}
+
+async function parseArgs() {
   program
     .name('roast')
     .description('Your prompt reviewed, roasted, and returned fixed.')
     .version('1.0.0')
-    .argument('<prompt>', 'The prompt to roast')
+    .argument('[prompt]', 'The prompt to roast (or pipe via stdin)')
     .option('-m, --model <model>', 'Claude model to use', 'claude-haiku-4-5')
     .option('-t, --task <task>', 'Task context (e.g. "code review", "email writing")')
     .option('--no-color', 'Disable color output')
     .parse();
 
-  return { prompt: program.args[0], options: program.opts() };
+  let prompt = program.args[0];
+  if (!prompt && !process.stdin.isTTY) {
+    prompt = await readStdin();
+  }
+
+  return { prompt, options: program.opts() };
 }
 
 export function buildUserMessage(prompt, task) {
@@ -165,7 +180,7 @@ async function streamRoast(prompt, options) {
 }
 
 async function main() {
-  const { prompt, options } = parseArgs();
+  const { prompt, options } = await parseArgs();
 
   if (options.color === false) {
     chalk.level = 0;
