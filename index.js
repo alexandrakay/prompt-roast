@@ -4,6 +4,7 @@ import chalk from 'chalk';
 import ora from 'ora';
 import Anthropic from '@anthropic-ai/sdk';
 import { fileURLToPath } from 'url';
+import { readFile } from 'node:fs/promises';
 
 export const SYSTEM_PROMPT = `You are a brutal, snarky prompt critic. Your job is to tear apart bad prompts, charge them for every crime, and hand back a rewrite that actually works.
 
@@ -36,6 +37,11 @@ function readStdin() {
   });
 }
 
+export async function readFilePrompt(filePath) {
+  const content = await readFile(filePath, 'utf8');
+  return content.trim();
+}
+
 async function parseArgs() {
   program
     .name('roast')
@@ -44,15 +50,25 @@ async function parseArgs() {
     .argument('[prompt]', 'The prompt to roast (or pipe via stdin)')
     .option('-m, --model <model>', 'Claude model to use', 'claude-haiku-4-5')
     .option('-t, --task <task>', 'Task context (e.g. "code review", "email writing")')
+    .option('-f, --file <path>', 'Read prompt from a file')
     .option('--no-color', 'Disable color output')
     .parse();
 
+  const opts = program.opts();
   let prompt = program.args[0];
-  if (!prompt && !process.stdin.isTTY) {
+
+  if (prompt && opts.file) {
+    process.stderr.write(chalk.red('✗ Provide a prompt as an argument or via --file, not both.\n'));
+    process.exit(1);
+  }
+
+  if (opts.file) {
+    prompt = await readFilePrompt(opts.file);
+  } else if (!prompt && !process.stdin.isTTY) {
     prompt = await readStdin();
   }
 
-  return { prompt, options: program.opts() };
+  return { prompt, options: opts };
 }
 
 export function buildUserMessage(prompt, task) {
